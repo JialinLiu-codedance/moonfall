@@ -353,28 +353,49 @@ B0 上游锁定
   → A8 V1 对齐与正式发布
 ```
 
-B2 未通过前不得开始 A0；A1 未证明 SEA 随 `.app` 在无 Node.js 环境独立运行前不得开始 A2。每个阶段必须使用独立 OpenSpec change，并在完成 verify、strict validation、sync 和 archive 后才视为完成。
+B2 未通过前不得开始 A0；A1 未证明 SEA 随 `.app` 在无 Node.js 环境独立运行前不得开始 A2。阶段是能力 milestone，工作包是最小执行单元；路线固定包含从 B0.1 到 A8.4 的 54 个有序工作包。
+
+每次只实施一个 active 工作包。每个工作包使用独立 OpenSpec change，通常拆分为 3-7 个可独立验证的 task；只有当前工作包完成 verify、strict validation、sync 和 archive 后才能开始下一项。task 必须记录输入、输出、失败行为和 fresh verification，完成后立即更新 checkbox 与证据。
+
+上下文压缩或新会话后，AI 必须重新读取 `openspec status`、apply instructions 返回的全部 context files、`git status`、当前 diff、task checkbox 和最近验证证据，再继续下一个未完成 task。聊天记录、模型记忆或 subagent 声明不能替代仓库事实；发现 artifacts 漂移时必须停止实施、更新 artifacts 并重新获得用户确认。
 
 ### B0：上游锁定
 
-- 建议 change：`pin-kimi-code-upstream`
 - 目标：建立可审计、可复现的 Kimi Code 来源边界。
 - 交付物：上游仓库与完整 commit 配置、工具链约束、拉取和 checkout 校验脚本、缓存策略、升级说明。
 - 完成门禁：脚本只能得到指定 commit；上游身份、工作树、commit 或 lockfile 不匹配时明确失败。
 
+| 编号 | OpenSpec change | 单一开发结果 |
+| --- | --- | --- |
+| B0.1 | `define-kimi-upstream-lock` | 定义上游仓库、完整 commit、version lock schema |
+| B0.2 | `fetch-pinned-kimi-code` | 拉取缓存并校验 remote、detached checkout 与 clean worktree |
+| B0.3 | `verify-kimi-toolchain` | 校验 Node、pnpm、平台、lockfile 与升级失败规则 |
+
 ### B1：SEA 可重复构建
 
-- 建议 change：`build-kimi-code-sea`
 - 目标：从 B0 锁定来源生成官方完整 Apple Silicon SEA。
 - 交付物：固定 Node/pnpm 环境、完整官方 native workflow 脚本、`darwin-arm64` SEA、SHA-256、版本清单、构建日志、native smoke 结果和 packaged artifact。
 - 完成门禁：全新目录可以依次完成 Kimi Web 构建、Web assets 复制、`build:native:release`、native smoke 和 artifact packaging；manifest 中的 commit、version、上游 target `darwin-arm64`、Mach-O 架构 `arm64`、Tauri staging triple `aarch64-apple-darwin` 和 SHA-256 可追溯。
 
+| 编号 | OpenSpec change | 单一开发结果 |
+| --- | --- | --- |
+| B1.1 | `build-kimi-web-assets` | 构建 Kimi Web 并复制 Web assets |
+| B1.2 | `build-kimi-release-sea` | 使用 `darwin-arm64` target 执行 `build:native:release` |
+| B1.3 | `smoke-and-package-sea` | 完成 native smoke、artifact packaging 与 checksum |
+| B1.4 | `produce-sea-manifest` | 记录 target、Mach-O 架构、Tauri triple、SHA 并进入 staging |
+
 ### B2：后端协议与能力验收
 
-- 建议 change：`qualify-kimi-backend`
 - 目标：在 App 工程开始前完成官方后端能力基线。
 - 交付物：OpenAPI/AsyncAPI snapshot、typed client 生成输入、REST endpoint 与 WebSocket event 清单、能力矩阵、contract/smoke harness、预期 Tauri production origin 验证。
 - 完成门禁：全部 endpoint、event 和能力域都有测试入口或明确限制；依赖真实账号或模型的 live verification 不得静默跳过。
+
+| 编号 | OpenSpec change | 单一开发结果 |
+| --- | --- | --- |
+| B2.1 | `capture-backend-protocols` | 保存 OpenAPI 与 AsyncAPI 基线 |
+| B2.2 | `build-backend-contract-harness` | 验证启动、health、loopback、auth、origin 与 REST/WS contract |
+| B2.3 | `catalogue-backend-capabilities` | 建立 endpoint、event 与能力域矩阵 |
+| B2.4 | `verify-backend-live-scenarios` | 验证账号、模型、OAuth、外部服务场景并记录阻塞 |
 
 “后端完整”由三层证据组成：
 
@@ -386,81 +407,144 @@ B2 未通过前不得开始 A0；A1 未证明 SEA 随 `.app` 在无 Node.js 环�
 
 ### A0：Tauri + React 工程初始化
 
-- 建议 change：`initialize-moonfall-app`
 - 目标：建立可持续开发和验证的空 App 工程。
 - 交付物：Tauri 2、React、TypeScript、Vite、HeroUI v3、Tailwind CSS v4、lint、typecheck、unit、Playwright、Midscene 和条件式 CI。
 - 完成门禁：空 App 可启动；基础检查全绿；UI 测试基础设施能够产生有效 RED/GREEN。
 
+| 编号 | OpenSpec change | 单一开发结果 |
+| --- | --- | --- |
+| A0.1 | `initialize-app-workspace` | 初始化无可见产品功能的 Tauri、React、TypeScript 与 Vite 空工程 |
+| A0.2 | `establish-test-and-ci` | 建立 unit、Playwright、Midscene、fixture、reporter 与 CI |
+| A0.3 | `establish-ui-foundation` | 建立 HeroUI v3、Tailwind v4、tokens 与主题基础 |
+| A0.4 | `establish-native-security` | 建立 Tauri capabilities、CSP 与原生命令边界 |
+
 ### A1：SEA sidecar 打包与生命周期
 
-- 建议 change：`integrate-kimi-sidecar`
 - 目标：将 B1 产物作为 external binary 随 `.app` 分发并建立可靠生命周期。
 - 交付物：Tauri external binary 配置、独立 `KIMI_CODE_HOME`、启动和健康状态、官方连接描述传递、有限重启、日志、退出清理和诊断 UI。
 - 完成门禁：App Bundle 包含匹配 SEA；真实 `.app` 在无 Node.js 环境启动；异常退出、重试和正常退出清理通过。
 
+| 编号 | OpenSpec change | 单一开发结果 |
+| --- | --- | --- |
+| A1.1 | `bundle-sea-sidecar` | 配置 external binary staging 并验证 App Bundle |
+| A1.2 | `isolate-kimi-data-home` | 建立独立 `KIMI_CODE_HOME`、缓存与日志目录 |
+| A1.3 | `launch-and-connect-sidecar` | 启动进程并传递地址与官方连接描述 |
+| A1.4 | `manage-sidecar-health` | 实现启动状态、超时与健康检查 |
+| A1.5 | `manage-sidecar-lifecycle` | 实现有限重启、异常退出与退出清理 |
+| A1.6 | `expose-sidecar-diagnostics` | 展示服务端版本、连接状态并导出日志与诊断信息 |
+
 ### A2：最小 Agent 闭环
 
-- 建议 change：`deliver-minimal-agent-loop`
 - 目标：首次证明完整端到端技术路线。
 - 交付物：工作区选择、会话创建、Composer、流式文本、停止生成和基础错误状态。
 - 完成门禁：用户可以从启动 App 到完成一次真实 Agent turn，无需返回 CLI 或 Kimi Web。
 
+| 编号 | OpenSpec change | 单一开发结果 |
+| --- | --- | --- |
+| A2.1 | `manage-workspaces` | 完成目录选择及工作区添加、删除、重命名、切换与最近列表 |
+| A2.2 | `create-and-organize-sessions` | 完成会话创建及按工作区组织 |
+| A2.3 | `implement-composer` | 完成不含附件的文本输入与发送 |
+| A2.4 | `render-streaming-response` | 发送 REST command 并渲染 WebSocket 流式文本 |
+| A2.5 | `control-agent-turn` | 完成停止、错误、重试与真实 Agent turn 验收 |
+
 ### A3：完整会话与实时交互
 
-- 建议 change：`complete-conversation-workflow`
 - 目标：覆盖日常 Agent 对话与服务恢复场景。
 - 交付物：会话管理、Transcript、Thinking、Tool call/result、Approval、Question、附件、队列、steer、undo、compact、WebSocket 重连、事件缺口检测和 REST snapshot 恢复。
 - 完成门禁：常规 Agent 会话不需要返回 CLI 或 Kimi Web；断线和事件缺口可以恢复到 Kimi Code 权威状态。
 
+| 编号 | OpenSpec change | 单一开发结果 |
+| --- | --- | --- |
+| A3.1 | `manage-sessions` | 完成会话列表、搜索、分页、重命名、归档、恢复、分叉与导出 |
+| A3.2 | `render-rich-transcript` | 渲染 Markdown、代码、表格、Mermaid、KaTeX 与媒体 |
+| A3.3 | `render-thinking-and-tools` | 渲染 Thinking 与 Tool input、progress、result、error |
+| A3.4 | `handle-user-interactions` | 完成 Approval、Question 与附件上传、预览、移除生命周期 |
+| A3.5 | `control-message-flow` | 完成队列、排序、steer、undo、compact、草稿与输入历史 |
+| A3.6 | `recover-realtime-state` | 完成重连、事件缺口检测与 REST snapshot resync |
+
 ### A4：开发者工作区
 
-- 建议 change：`add-developer-workspace`
 - 目标：让用户在 Moonfall 内检查 Agent 的代码与命令结果。
 - 交付物：文件树、搜索、预览、Git 状态、diff、Terminal、编辑器打开和 Finder 集成。
 - 完成门禁：Agent 产生的主要文件修改和命令结果均可在 App 内检查。
 
+| 编号 | OpenSpec change | 单一开发结果 |
+| --- | --- | --- |
+| A4.1 | `browse-project-files` | 完成文件树、搜索与预览 |
+| A4.2 | `integrate-native-file-actions` | 完成编辑器打开与 Finder 显示 |
+| A4.3 | `inspect-git-state` | 展示分支、状态与增删统计 |
+| A4.4 | `inspect-file-diffs` | 展示文件 diff 与 Tool diff |
+| A4.5 | `provide-interactive-terminal` | 完成 PTY 生命周期、Terminal UI 与退出清理 |
+
 ### A5：高级 Agent 能力
 
-- 建议 change：`add-advanced-agent-controls`
 - 目标：消费 Kimi Code 暴露的高级 Agent 控制能力。
 - 交付物：Plan、Goal、Task、Swarm、子 Agent、BTW、Skills 和权限模式。
 - 完成门禁：高级任务可观察、可交互、可取消、可恢复，且 Kimi Code 仍是业务状态唯一事实来源。
 
+| 编号 | OpenSpec change | 单一开发结果 |
+| --- | --- | --- |
+| A5.1 | `configure-agent-permissions` | 完成权限模式、Plan mode 与单次 turn Thinking override |
+| A5.2 | `manage-goals-and-tasks` | 完成 Goal 生命周期、Task 查看与取消 |
+| A5.3 | `observe-agent-swarms` | 展示 Swarm、子 Agent 状态并支持取消 |
+| A5.4 | `support-btw-conversations` | 完成 BTW 侧聊与上下文隔离 |
+| A5.5 | `expose-skills` | 完成 Skills 列表、详情、调用与结果 |
+
 ### A6：模型、账号与配置
 
-- 建议 change：`add-model-and-account-settings`
 - 目标：完成模型访问与用户偏好闭环。
 - 交付物：OAuth、Provider、模型选择、Thinking level、默认参数、主题、通知、声音和诊断设置。
 - 完成门禁：首次登录到模型调用完整通过；凭据不进入前端持久化、URL 或普通日志。
 
+| 编号 | OpenSpec change | 单一开发结果 |
+| --- | --- | --- |
+| A6.1 | `integrate-oauth-and-providers` | 完成 OAuth 与 Provider 生命周期 |
+| A6.2 | `select-models` | 完成模型列表、选择、收藏与可用性 |
+| A6.3 | `configure-runtime-parameters` | 持久化默认模型、默认 Thinking 与其他运行参数 |
+| A6.4 | `manage-user-preferences` | 完成主题、字体、通知、声音与诊断偏好 |
+
 ### A7：桌面产品化
 
-- 建议 change：`productize-moonfall-desktop`
 - 目标：将功能完整 App 提升到发布候选质量。
-- 交付物：首次启动、空状态、窗口与菜单、快捷键、通知、崩溃恢复、长会话性能和诊断导出。
+- 交付物：首次启动、空状态、窗口与菜单、快捷键、通知、崩溃恢复和长会话性能；诊断导出复用 A1.6 已建立的能力。
 - 完成门禁：长会话、App 重启、后台恢复、sidecar 异常和最低窗口尺寸通过验收。
+
+| 编号 | OpenSpec change | 单一开发结果 |
+| --- | --- | --- |
+| A7.1 | `polish-first-run` | 完成首次启动、空状态与引导 |
+| A7.2 | `integrate-desktop-shell` | 完成窗口、菜单、快捷键、最小尺寸与通知 |
+| A7.3 | `recover-app-and-sidecar` | 完成 App 与 sidecar 的重启、崩溃和后台恢复 |
+| A7.4 | `qualify-performance` | 验证长会话、内存、启动速度与持续运行 |
 
 ### A8：V1 对齐与正式发布
 
-- 建议 change：`release-moonfall-v1`
 - 目标：完成可追溯、可安装的 Apple Silicon V1。
 - 交付物：固定到 B0 同一 Kimi Code commit 的 Kimi Web 功能差异矩阵、签名、公证、安装包、版本映射和发布验收报告。
 - 完成门禁：干净 Apple Silicon Mac 可以安装并完成核心场景；V1 范围内全部差异只能标记为已支持或明确不适用。部分支持或延期不是 V1 完成状态，必须先通过用户确认的 OpenSpec scope exception 调整范围，且不得移除核心能力。
+
+| 编号 | OpenSpec change | 单一开发结果 |
+| --- | --- | --- |
+| A8.1 | `close-feature-matrix` | 固定 B0 commit 并关闭功能差异与 scope exception |
+| A8.2 | `freeze-release-mapping` | 固定 App、SEA、protocol、version 原子映射与回滚 |
+| A8.3 | `sign-and-notarize-app` | 完成 Developer ID、hardened runtime、entitlements 与公证 |
+| A8.4 | `qualify-clean-machine-release` | 完成安装包、干净机器、升级、回滚与发布报告 |
 
 ### 7.1 版本节点
 
 版本节点表示能力成熟度，不预设日历日期：
 
-| 版本节点 | 包含阶段 | 可交付结果 |
+| 版本节点 | 对应工作包 | 可交付结果 |
 | --- | --- | --- |
-| Backend Preview | B0-B2 | 固定、构建并完整验证官方 SEA，尚无 App |
-| `0.1 Desktop Foundation` | A0-A1 | SEA 随 `.app` 打包，生命周期和诊断可用 |
-| `0.2 Agent Alpha` | A2 | 可以选择项目并完成真实 Agent turn |
-| `0.3 Conversation Alpha` | A3 | 日常对话、Tool、Approval、Question 和恢复可用 |
-| `0.4 Developer Preview` | A4 | 文件、Git、diff 和 Terminal 形成开发工作台 |
-| `0.5 Agent Beta` | A5-A6 | 高级 Agent、模型、OAuth、Provider 和设置完成 |
-| `0.9 Release Candidate` | A7 | 桌面体验、恢复、性能和诊断达到发布候选标准 |
-| `1.0` | A8 | 功能差异收敛，完成签名、公证和干净机器验收 |
+| `0.0.1 Upstream Locked` | B0.3 | 上游、完整 commit、工具链和拉取边界固定 |
+| `0.0.2 SEA Artifact` | B1.4 | 官方完整 SEA 可重复构建、校验并进入 staging |
+| `0.0.3 Backend Preview` | B2.4 | 固定、构建并完整验证官方 SEA，尚无 App |
+| `0.1.0 Desktop Foundation` | A1.6 | SEA 随 `.app` 打包，生命周期和诊断可用 |
+| `0.2.0 Agent Alpha` | A2.5 | 可以选择项目并完成真实 Agent turn |
+| `0.3.0 Conversation Alpha` | A3.6 | 日常对话、Tool、Approval、Question 和恢复可用 |
+| `0.4.0 Developer Preview` | A4.5 | 文件、Git、diff 和 Terminal 形成开发工作台 |
+| `0.5.0 Agent Beta` | A6.4 | 高级 Agent、模型、OAuth、Provider 和设置完成 |
+| `0.9.0 Release Candidate` | A7.4 | 桌面体验、恢复、性能和诊断达到发布候选标准 |
+| `1.0.0` | A8.4 | 功能差异收敛，完成签名、公证和干净机器验收 |
 
 ## 8. 测试与验证
 
@@ -582,4 +666,4 @@ V1 只有在以下条件全部满足时才视为完成：
 - 功能差异矩阵固定到 B0 的同一 Kimi Code commit，V1 范围内每项均标记为已支持或明确不适用。
 - 第 6 章中由 A2-A6 交付的核心能力全部完成验收；部分支持或延期条目已通过用户确认的 OpenSpec scope exception 调整非核心范围，而不是作为 V1 完成状态保留。
 - `.app` 完成 Developer ID 签名、hardened runtime、notarization 和干净机器安装验证。
-- B0-B2 与 A0-A8 的 OpenSpec change 均完成 verify、strict validation、sync 和 archive。
+- B0.1-A8.4 的 54 个工作包对应 OpenSpec change 均完成 verify、strict validation、sync 和 archive。
