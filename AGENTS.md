@@ -77,7 +77,7 @@
 - Branch base 分支必须是 main
 - 每次创建 Pull Reqeust 前需要先 rebase 最新的 main 分支代码到当前分支
 - PR title 必须以如下格式设置
-  - <type>[scope]: <description>
+  - <type>(scope): <description>
     - type 类型：
       - feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert
   - 示例：feat(auth): 增加用户登录功能
