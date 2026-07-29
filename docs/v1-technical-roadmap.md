@@ -1,7 +1,7 @@
 # Moonfall V1 技术路线
 
 > 状态：Draft  
-> 日期：2026-07-28  
+> 日期：2026-07-29
 > 目标版本：V1（macOS）
 
 ## 1. 项目目标
@@ -26,7 +26,7 @@ V1 重点解决以下问题：
 - 样式基础：Tailwind CSS v4 + CSS Variables
 - 后端运行时：Kimi Code SEA 可执行文件
 - 后端协议：kap-server 的 REST + WebSocket API
-- 首发平台：macOS
+- 首发平台：macOS，Apple Silicon only
 
 HeroUI 必须使用 v3 API：
 
@@ -72,6 +72,15 @@ V1 保留的主要视觉特征：
 
 后续版本可在不改变后端协议的情况下逐步调整信息架构、视觉品牌和交互模型。
 
+### 2.4 后端引入与运行边界
+
+- Moonfall 记录 Kimi Code 上游仓库、完整 commit SHA、Kimi Code version、Node/pnpm 工具链和上游构建 target，禁止构建时跟随浮动分支。
+- Moonfall 通过脚本拉取指定 commit，并使用上游 `darwin-arm64` target 和官方 native release workflow 生成完整 SEA。
+- V1 接受官方 SEA 中内置但不使用的 Kimi Web 静态资源，不维护剔除前端资源的上游 patch 或 fork。
+- SEA 作为 Tauri external binary 随 App Bundle 打包，用户不需要安装 Node.js、pnpm、Kimi CLI 或外部 daemon。
+- V1 使用 Moonfall 独立 `KIMI_CODE_HOME` 和 App 私有 sidecar，不复用 `~/.kimi-code` 或已运行的 Kimi daemon。
+- Moonfall App 与 SEA 作为一个原子版本发布，sidecar 不独立自动更新。
+
 ## 3. 总体架构
 
 ```text
@@ -103,11 +112,13 @@ V1 保留的主要视觉特征：
 ### 3.1 React 前端职责
 
 - 呈现全部用户界面。
-- 管理本地 UI 状态和服务端状态缓存。
+- 管理临时 UI 状态和可丢弃的服务端状态缓存。
 - 通过 REST 完成查询和命令操作。
-- 通过 WebSocket 接收增量事件并收敛到一致状态。
+- 通过 WebSocket 接收增量事件，并在连接中断或事件缺口时重新获取 REST snapshot。
 - 将原生能力请求发送给 Tauri Rust Host。
+- 按 Kimi Code 官方连接契约携带认证信息，不实现 Token 生命周期。
 - 不直接创建或管理 Agent Core 实例。
+- 不把 Session、Transcript、Task、Agent 或 Provider 等状态复制为第二套业务事实来源。
 
 ### 3.2 Tauri Rust Host 职责
 
@@ -116,7 +127,7 @@ V1 保留的主要视觉特征：
 - 处理启动超时、异常退出、重启和退出清理。
 - 管理窗口、菜单、快捷键和窗口状态。
 - 提供目录选择、文件保存、Finder 显示和外部应用打开能力。
-- 提供 macOS 通知、钥匙串和后续自动更新能力。
+- 提供 macOS 通知和后续 App 自动更新能力。
 - 将运行日志写入可诊断、可导出的位置。
 
 Rust Host 不承担以下职责：
@@ -125,9 +136,11 @@ Rust Host 不承担以下职责：
 - 会话和 Transcript 业务逻辑
 - Tool、Skill、MCP 实现
 - 模型 Provider 管理逻辑
+- Token 生成、保存、校验或轮换逻辑
 
 ### 3.3 Kimi Code 后端职责
 
+- Token 生成、保存、校验与轮换，以及 REST/WebSocket 鉴权规则。
 - Agent、Session、Task 和 Transcript 生命周期。
 - 模型、Provider 与 OAuth。
 - Tool、Skill、MCP 和权限控制。
@@ -139,15 +152,28 @@ Rust Host 不承担以下职责：
 
 ### 4.1 构建与分发
 
-Moonfall 不要求用户安装 Kimi Code。发布流程为每个目标平台构建一个固定版本的 Kimi Code SEA，并作为 Tauri sidecar 打进 App Bundle。
+Moonfall 不提交 Kimi Code 源码，也不要求用户安装 Kimi Code。后端构建流程从版本锁文件读取上游仓库、完整 commit、工具链和上游 target，拉取并校验 checkout 后完整复现该 commit 的官方 native build workflow：
 
-基本要求：
+1. 在 `darwin-arm64` target 的 workflow job 中构建 Kimi Web。
+2. 执行 `apps/kimi-code/scripts/copy-web-assets.mjs`，将 Web assets 放入 SEA 构建输入。
+3. 执行 `build:native:release`，生成官方 release profile SEA。
+4. 执行 `test:native:smoke`，验证 native executable 可运行。
+5. 执行 `package:native`，生成带 checksum 的上游 artifact。
 
-- 每个 Moonfall 版本固定对应一个 Kimi Code commit 或 release。
-- CI 从固定版本构建 SEA，禁止在发布时跟随浮动分支。
-- App 启动前校验 sidecar 是否存在且可执行。
-- Moonfall 版本信息中记录对应的 Kimi Code 版本。
-- 前端协议兼容性以该固定后端版本为准。
+以上步骤必须依次成功，不得跳过 Kimi Web 构建、Web assets 复制、native smoke 或 artifact packaging。`darwin-arm64` 是 Kimi Code 上游 native target；产物的 Mach-O 架构必须为 `arm64`；`aarch64-apple-darwin` 只用于 Tauri external binary staging 的平台 triple。进入 staging 时，脚本才按 Tauri 约定复制或重命名已验证的 SEA。
+
+构建产物必须记录：
+
+- Moonfall version
+- Kimi Code commit 与 version
+- Node 与 pnpm version
+- 上游 target `darwin-arm64`
+- Mach-O 架构 `arm64`
+- Tauri staging triple `aarch64-apple-darwin`
+- SEA SHA-256
+- OpenAPI、AsyncAPI 和能力矩阵版本
+
+构建流程必须在上游身份、commit、工作树或 lockfile 不匹配时明确失败。构建缓存、上游源码 checkout 和 SEA artifact 不进入 Git。经 smoke test 的 SEA 进入 Tauri external binary staging，最终随 App Bundle 一起签名、分发和回滚。
 
 ### 4.2 启动流程
 
@@ -155,8 +181,8 @@ Moonfall 不要求用户安装 Kimi Code。发布流程为每个目标平台构�
 2. Rust Host 确定应用数据目录、日志目录和 sidecar 路径。
 3. 启动 Kimi Code SEA。
 4. 读取实际监听地址并轮询 `/api/v1/healthz`。
-5. 获取服务端 token，通过安全的初始化通道交给前端。
-6. 前端初始化 REST 客户端并建立 WebSocket 连接。
+5. 按 Kimi Code 官方机制获取 endpoint 与 opaque credential 组成的连接描述。
+6. 通过受控初始化通道将连接描述交给前端，前端按官方协议初始化 REST 客户端并建立 WebSocket 连接。
 7. 获取 meta、auth、config、workspace 和 session 初始状态。
 8. 进入 Agent 工作台。
 
@@ -174,9 +200,10 @@ Moonfall 不要求用户安装 Kimi Code。发布流程为每个目标平台构�
 - 保留 bearer token 鉴权，不使用 `--dangerous-bypass-auth`。
 - 只允许 Tauri 应用的本地 origin 访问 REST 和 WebSocket。
 - Token 不写入 URL 查询参数，不输出到普通日志。
+- Token 的生成、保存、校验与轮换全部由 Kimi Code 处理，Moonfall 不建立 Token store 或刷新状态机。
 - 原生命令采用最小 Tauri capability，不为前端开放通用 Shell 执行。
 - 外部 URL、文件路径和应用启动请求必须经过校验。
-- Provider 凭据后续应由 macOS Keychain 承载；V1 若仍由 Kimi Code 管理，必须记录迁移边界。
+- Provider 凭据由 Kimi Code 保存在 Moonfall 独立 `KIMI_CODE_HOME`；Moonfall 不复制凭据到前端持久化或普通日志。
 
 ## 5. 前端架构
 
@@ -214,12 +241,12 @@ src/
 
 ### 5.2 状态分层
 
-- TanStack Query：工作区、会话列表、模型、Provider、配置等服务端查询状态。
-- Zustand：当前会话、流式消息、任务活动、待处理交互和 UI 状态。
+- TanStack Query：工作区、会话列表、模型、Provider、配置等可重新获取的服务端查询缓存。
+- Zustand：当前选择、流式展示、待处理交互和其他临时 UI 状态。
 - 组件局部状态：输入框、Popover、Dialog、选中项和临时表单。
 - Tauri 状态：sidecar 生命周期、窗口状态、系统权限和更新状态。
 
-服务端数据只保留一个明确的事实来源。WebSocket 增量更新必须能够在断线、事件缺口或版本不匹配时回退到 REST snapshot，而不是长期依赖不完整的本地推演。
+Kimi Code 是 Token、Session、Transcript、Task、Agent、Provider 等认证与业务状态的唯一事实来源。前端缓存可以丢弃和重建；WebSocket 增量更新必须能够在断线、事件缺口或版本不匹配时回退到 REST snapshot，而不是长期依赖不完整的本地推演。
 
 ### 5.3 API 客户端
 
@@ -227,7 +254,7 @@ REST 和 WebSocket 分开实现：
 
 - REST 类型优先从 kap-server OpenAPI 生成。
 - 在生成层之上增加轻量、稳定的领域 facade。
-- WebSocket 使用独立的协议模块，负责连接、订阅、心跳、游标、重连和 resync。
+- WebSocket 使用独立的协议模块，负责连接、订阅、心跳、游标、重连和 resync，但不实现 Kimi Code 的认证或业务状态生命周期。
 - React 组件不得直接拼接 URL 或处理 wire snake_case 数据。
 - 所有错误统一映射为前端可识别的错误类型。
 
@@ -309,177 +336,250 @@ Moonfall 自己实现领域组件：
 
 ## 7. 迭代计划
 
-### M0：工程与协议基线
+V1 采用“后端基座先行，App 纵向闭环推进”。阶段依赖固定为：
 
-目标：建立可持续开发的工程骨架。
+```text
+B0 上游锁定
+  → B1 SEA 可重复构建
+  → B2 后端协议与能力验收
+  → A0 Tauri + React 工程初始化
+  → A1 SEA sidecar 打包与生命周期
+  → A2 最小 Agent 闭环
+  → A3 完整会话与实时交互
+  → A4 开发者工作区
+  → A5 高级 Agent 能力
+  → A6 模型、账号与配置
+  → A7 桌面产品化
+  → A8 V1 对齐与正式发布
+```
 
-- 初始化 Tauri 2 + React + TypeScript + Vite。
-- 配置 HeroUI v3、Tailwind CSS v4 和主题 Token。
-- 建立代码质量、单元测试和桌面 E2E 基础。
-- 固定 Kimi Code 后端版本。
-- 验证 REST、WebSocket、鉴权和 CORS/origin 行为。
+B2 未通过前不得开始 A0；A1 未证明 SEA 随 `.app` 在无 Node.js 环境独立运行前不得开始 A2。每个阶段必须使用独立 OpenSpec change，并在完成 verify、strict validation、sync 和 archive 后才视为完成。
 
-完成标准：开发环境能启动空 App，并连接一个本地 Kimi Code 服务。
+### B0：上游锁定
 
-### M1：最小 Agent 闭环
+- 建议 change：`pin-kimi-code-upstream`
+- 目标：建立可审计、可复现的 Kimi Code 来源边界。
+- 交付物：上游仓库与完整 commit 配置、工具链约束、拉取和 checkout 校验脚本、缓存策略、升级说明。
+- 完成门禁：脚本只能得到指定 commit；上游身份、工作树、commit 或 lockfile 不匹配时明确失败。
 
-目标：证明端到端技术路线。
+### B1：SEA 可重复构建
 
-- Tauri 启动并探活 sidecar。
-- 选择本地工作区。
-- 创建会话。
-- 发送一条消息。
-- 展示流式文本和结束状态。
-- 支持打断和基础错误恢复。
+- 建议 change：`build-kimi-code-sea`
+- 目标：从 B0 锁定来源生成官方完整 Apple Silicon SEA。
+- 交付物：固定 Node/pnpm 环境、完整官方 native workflow 脚本、`darwin-arm64` SEA、SHA-256、版本清单、构建日志、native smoke 结果和 packaged artifact。
+- 完成门禁：全新目录可以依次完成 Kimi Web 构建、Web assets 复制、`build:native:release`、native smoke 和 artifact packaging；manifest 中的 commit、version、上游 target `darwin-arm64`、Mach-O 架构 `arm64`、Tauri staging triple `aarch64-apple-darwin` 和 SHA-256 可追溯。
 
-完成标准：无外部 Kimi/Node 环境时，可以从启动 App 到完成一次 Agent turn。
+### B2：后端协议与能力验收
 
-### M2：完整对话与交互
+- 建议 change：`qualify-kimi-backend`
+- 目标：在 App 工程开始前完成官方后端能力基线。
+- 交付物：OpenAPI/AsyncAPI snapshot、typed client 生成输入、REST endpoint 与 WebSocket event 清单、能力矩阵、contract/smoke harness、预期 Tauri production origin 验证。
+- 完成门禁：全部 endpoint、event 和能力域都有测试入口或明确限制；依赖真实账号或模型的 live verification 不得静默跳过。
 
-- 完整消息时间线。
-- Thinking、Tool call 和 Tool result。
-- Approval、Question 和权限模式。
-- 附件、排队、steer、undo 和 compact。
-- WebSocket 重连、事件缺口和 snapshot 恢复。
+“后端完整”由三层证据组成：
 
-完成标准：常规 Agent 会话不需要回到 CLI 或 Kimi Web 完成操作。
+1. 构建完整性：官方完整 SEA、原生依赖和运行资源进入可校验产物。
+2. 协议完整性：REST endpoint 与 WebSocket event 全部分类并追溯到同一 commit。
+3. 能力完整性：Session、Transcript、Agent、Tool、Skill、Task、Goal、Swarm、文件、Git、Terminal、模型、Provider、OAuth、配置和日志等能力域均有 contract test、smoke scenario 或明确限制。
 
-### M3：开发者工作区
+“后端完整”不表示 React 已实现全部界面，而表示所有官方能力已被识别、分类并建立后续消费与验证入口。
 
-- 文件树、搜索和预览。
-- Git 状态、变更列表和 diff。
-- 终端。
-- 原生目录选择、打开文件和 Finder 集成。
+### A0：Tauri + React 工程初始化
 
-完成标准：用户可以在 Moonfall 内检查 Agent 产生的主要代码变更和命令执行结果。
+- 建议 change：`initialize-moonfall-app`
+- 目标：建立可持续开发和验证的空 App 工程。
+- 交付物：Tauri 2、React、TypeScript、Vite、HeroUI v3、Tailwind CSS v4、lint、typecheck、unit、Playwright、Midscene 和条件式 CI。
+- 完成门禁：空 App 可启动；基础检查全绿；UI 测试基础设施能够产生有效 RED/GREEN。
 
-### M4：高级 Agent 能力
+### A1：SEA sidecar 打包与生命周期
 
-- Plan、Goal、Task。
-- Swarm、子 Agent、BTW。
-- Skills。
-- 模型、Provider 和 OAuth。
+- 建议 change：`integrate-kimi-sidecar`
+- 目标：将 B1 产物作为 external binary 随 `.app` 分发并建立可靠生命周期。
+- 交付物：Tauri external binary 配置、独立 `KIMI_CODE_HOME`、启动和健康状态、官方连接描述传递、有限重启、日志、退出清理和诊断 UI。
+- 完成门禁：App Bundle 包含匹配 SEA；真实 `.app` 在无 Node.js 环境启动；异常退出、重试和正常退出清理通过。
 
-完成标准：覆盖 Kimi Web 暴露的高级 Agent 控制能力。
+### A2：最小 Agent 闭环
 
-### M5：产品化与发布
+- 建议 change：`deliver-minimal-agent-loop`
+- 目标：首次证明完整端到端技术路线。
+- 交付物：工作区选择、会话创建、Composer、流式文本、停止生成和基础错误状态。
+- 完成门禁：用户可以从启动 App 到完成一次真实 Agent turn，无需返回 CLI 或 Kimi Web。
 
-- 首次启动与空状态。
-- 通知、声音、快捷键和原生菜单。
-- 日志、诊断和崩溃恢复。
-- 性能、长会话和大输出优化。
-- macOS 签名、公证和安装包。
+### A3：完整会话与实时交互
 
-完成标准：在未安装开发工具的新 Mac 用户环境完成安装和核心功能验收。
+- 建议 change：`complete-conversation-workflow`
+- 目标：覆盖日常 Agent 对话与服务恢复场景。
+- 交付物：会话管理、Transcript、Thinking、Tool call/result、Approval、Question、附件、队列、steer、undo、compact、WebSocket 重连、事件缺口检测和 REST snapshot 恢复。
+- 完成门禁：常规 Agent 会话不需要返回 CLI 或 Kimi Web；断线和事件缺口可以恢复到 Kimi Code 权威状态。
 
-### M6：功能对齐验收
+### A4：开发者工作区
 
-- 建立 Kimi Web 功能差异矩阵。
-- 对每项能力记录已支持、部分支持、不适用或延期。
-- 完成浅色/深色和常见窗口尺寸视觉对比。
-- 完成断网、后端异常、Token 失效和 App 重启场景。
+- 建议 change：`add-developer-workspace`
+- 目标：让用户在 Moonfall 内检查 Agent 的代码与命令结果。
+- 交付物：文件树、搜索、预览、Git 状态、diff、Terminal、编辑器打开和 Finder 集成。
+- 完成门禁：Agent 产生的主要文件修改和命令结果均可在 App 内检查。
 
-完成标准：V1 范围内不存在未记录的功能差异。
+### A5：高级 Agent 能力
+
+- 建议 change：`add-advanced-agent-controls`
+- 目标：消费 Kimi Code 暴露的高级 Agent 控制能力。
+- 交付物：Plan、Goal、Task、Swarm、子 Agent、BTW、Skills 和权限模式。
+- 完成门禁：高级任务可观察、可交互、可取消、可恢复，且 Kimi Code 仍是业务状态唯一事实来源。
+
+### A6：模型、账号与配置
+
+- 建议 change：`add-model-and-account-settings`
+- 目标：完成模型访问与用户偏好闭环。
+- 交付物：OAuth、Provider、模型选择、Thinking level、默认参数、主题、通知、声音和诊断设置。
+- 完成门禁：首次登录到模型调用完整通过；凭据不进入前端持久化、URL 或普通日志。
+
+### A7：桌面产品化
+
+- 建议 change：`productize-moonfall-desktop`
+- 目标：将功能完整 App 提升到发布候选质量。
+- 交付物：首次启动、空状态、窗口与菜单、快捷键、通知、崩溃恢复、长会话性能和诊断导出。
+- 完成门禁：长会话、App 重启、后台恢复、sidecar 异常和最低窗口尺寸通过验收。
+
+### A8：V1 对齐与正式发布
+
+- 建议 change：`release-moonfall-v1`
+- 目标：完成可追溯、可安装的 Apple Silicon V1。
+- 交付物：固定到 B0 同一 Kimi Code commit 的 Kimi Web 功能差异矩阵、签名、公证、安装包、版本映射和发布验收报告。
+- 完成门禁：干净 Apple Silicon Mac 可以安装并完成核心场景；V1 范围内全部差异只能标记为已支持或明确不适用。部分支持或延期不是 V1 完成状态，必须先通过用户确认的 OpenSpec scope exception 调整范围，且不得移除核心能力。
+
+### 7.1 版本节点
+
+版本节点表示能力成熟度，不预设日历日期：
+
+| 版本节点 | 包含阶段 | 可交付结果 |
+| --- | --- | --- |
+| Backend Preview | B0-B2 | 固定、构建并完整验证官方 SEA，尚无 App |
+| `0.1 Desktop Foundation` | A0-A1 | SEA 随 `.app` 打包，生命周期和诊断可用 |
+| `0.2 Agent Alpha` | A2 | 可以选择项目并完成真实 Agent turn |
+| `0.3 Conversation Alpha` | A3 | 日常对话、Tool、Approval、Question 和恢复可用 |
+| `0.4 Developer Preview` | A4 | 文件、Git、diff 和 Terminal 形成开发工作台 |
+| `0.5 Agent Beta` | A5-A6 | 高级 Agent、模型、OAuth、Provider 和设置完成 |
+| `0.9 Release Candidate` | A7 | 桌面体验、恢复、性能和诊断达到发布候选标准 |
+| `1.0` | A8 | 功能差异收敛，完成签名、公证和干净机器验收 |
 
 ## 8. 测试与验证
 
-### 8.1 单元测试
+### 8.1 统一验证层级
 
-- REST 数据映射
-- WebSocket event reducer
-- 消息与 Tool call 归并
-- 权限和交互状态转换
-- 路径、附件和 diff 工具函数
+```text
+静态检查
+  → 单元测试
+  → REST/WS contract test
+  → SEA 集成与能力 smoke test
+  → Playwright 确定性 E2E
+  → Midscene 语义 UI 验收
+  → 真实 .app 桌面验收
+  → 干净机器发布验收
+```
 
-### 8.2 组件测试
+每个 task 只有在相关 fresh verification 通过后才能勾选。依赖模型、账号、签名凭据或外部服务的检查必须明确记录为通过、失败或因缺少前置条件而阻塞，不得把 `skipped` 当作通过。
 
-- Composer
-- Conversation Timeline
-- Tool Call
-- Approval、Question
-- Task、Goal、Plan
-- Diff 和文件预览
+### 8.2 后端基座验证
 
-### 8.3 集成测试
+- 拉取脚本校验 remote、完整 commit、工作树和 lockfile。
+- 构建脚本校验固定工具链、完整官方 native workflow、SEA 可执行性、version、上游 target `darwin-arm64`、Mach-O 架构 `arm64`、Tauri staging triple `aarch64-apple-darwin` 和 SHA-256。
+- 保存 `/openapi.json` 与 `/asyncapi.json`，并检查 endpoint/event 与能力矩阵集合完整性。
+- 使用独立临时 `KIMI_CODE_HOME` 验证 loopback、官方鉴权、健康检查和主要能力域。
+- 使用预期 Tauri production origin 的 HTTP/WS contract harness 验证 CORS/origin 行为，A1 再用真实 `.app` 复验。
 
-- 启动 sidecar 并完成健康检查
-- 创建会话并提交 prompt
-- WebSocket 流式响应
-- Approval/Question 往返
-- 断线重连和 snapshot 恢复
-- 终端创建、输入、输出和关闭
+### 8.3 前端与集成验证
 
-### 8.4 桌面 E2E
+- 单元测试覆盖 REST 数据映射、WebSocket event reducer、消息和 Tool call 归并、路径、附件与 diff 工具函数。
+- 组件测试覆盖 Composer、Conversation Timeline、Tool Call、Approval、Question、Task、Goal、Plan、diff 和文件预览。
+- 集成测试覆盖 sidecar 健康检查、会话创建、prompt、流式响应、Approval/Question、snapshot 恢复和 Terminal 生命周期。
 
-- 首次启动
-- 选择项目并完成一次 Agent turn
-- App 退出和重启后的会话恢复
-- sidecar 启动失败和异常退出
-- 原生文件选择与通知
-- `.app` 在无 Node.js 环境运行
+### 8.4 UI 与桌面验收
 
-任何可见 UI 变更都需要在至少以下环境进行截图验证：
+- 所有用户可见 UI task 在实现前使用相同 Playwright assertion 和 Midscene prompt 获得有效 RED，实现后获得 GREEN。
+- 日常 React WebView 使用 `@midscene/web` + Playwright；真实 `.app` 里程碑使用 `@midscene/computer`。
+- 本地 Midscene 基础设施不可用时，相关 UI task 为 `BLOCKED`；CI 缺少模型配置时必须明确标记 `skipped` 及原因。
+- 视觉验收至少覆盖 macOS 浅色、深色、默认窗口尺寸和最小支持窗口尺寸。
+- 桌面 E2E 覆盖首次启动、真实 Agent turn、App 重启、sidecar 启动失败与异常退出、原生文件选择、通知和无 Node.js 环境运行。
 
-- macOS 浅色主题
-- macOS 深色主题
-- 默认窗口尺寸
-- 最小支持窗口尺寸
+## 9. 发布与升级要求
 
-## 9. 发布要求
-
-- 输出可独立运行的 `.app`。
-- App Bundle 包含对应架构的 Kimi Code sidecar。
-- 正式外部分发必须使用 Developer ID Application 签名。
-- 启用 hardened runtime，并为 sidecar 配置正确的签名与 entitlements。
-- 完成 Apple notarization。
-- 发布产物记录 Moonfall、前端协议和 Kimi Code 后端版本。
-- 自动更新不阻塞首个开发版，但正式稳定版发布前必须有明确方案。
+- 输出可独立运行的 Apple Silicon `.app`，App Bundle 包含匹配版本的官方完整 Kimi Code SEA。
+- 正式外部分发必须使用 Developer ID Application 签名、hardened runtime、正确的 sidecar entitlements 和 Apple notarization。
+- 发布产物必须记录 Moonfall version、Kimi Code commit/version、SEA SHA-256、OpenAPI、AsyncAPI 和能力矩阵版本。
+- V1 不允许 sidecar 独立自动更新；App 与 SEA 作为一个原子版本发布和回滚。
+- 用户数据目录与 App 版本分离。若后端引入不可逆数据迁移，升级前必须备份并记录最低可回滚版本。
+- 升级 Kimi Code 必须使用独立 OpenSpec change，更新固定 commit 后重新执行 B0-B2、生成协议差异并运行全部 App 回归。
 
 ## 10. 风险与控制
 
-### 10.1 后端协议持续变化
+### 10.1 上游构建环境变化
 
-控制措施：固定 Kimi Code commit；生成 REST 类型；维护协议兼容测试；升级后端时单独完成差异审查。
+控制措施：固定上游 commit、Node、pnpm、lockfile 与 `darwin-arm64` target，并在 B1 使用全新目录验证完整官方 native workflow 的重复构建；manifest 分别记录上游 target、Mach-O 架构和 Tauri staging triple，避免混用命名体系。
 
-### 10.2 流式事件状态复杂
+### 10.2 官方 SEA 包含未使用的 Kimi Web 资源
 
-控制措施：事件 reducer 与 UI 分离；保留 seq/cursor；检测缺口；所有不确定状态回退到 REST snapshot。
+控制措施：V1 接受体积代价以避免维护 fork；后续只能通过独立 change 评估体积和攻击面，不能在构建脚本中静默 patch 上游。
 
-### 10.3 Tauri 与 sidecar 生命周期
+### 10.3 后端协议持续变化
 
-控制措施：明确启动状态机、超时、日志和重试；使用健康检查而不是仅判断进程存在；覆盖异常退出测试。
+控制措施：保存 OpenAPI/AsyncAPI、生成 REST 类型、维护协议兼容测试；升级后端时重新执行 B0-B2 并完成差异审查。
 
-### 10.4 功能对齐范围过大
+### 10.4 Tauri origin 无法安全直连官方 REST/WS
 
-控制措施：按纵向闭环交付；维护功能矩阵；优先完成 Agent 主流程，再扩展高级功能。
+控制措施：B2 使用预期 production origin 的 contract harness 提前验证，A1 用真实 `.app` 复验；失败时暂停阶段并更新 OpenSpec design，不预先引入 Rust proxy。
 
-### 10.5 同时追求重构和视觉创新
+### 10.5 流式事件状态复杂
+
+控制措施：Kimi Code 保持业务状态唯一事实来源；事件 reducer 与 UI 分离；检测 seq/cursor 缺口；所有不确定状态回退到 REST snapshot。
+
+### 10.6 Tauri 与 sidecar 生命周期
+
+控制措施：明确启动状态机、超时、日志和有限重试；使用健康检查而不是仅判断进程存在；覆盖异常退出和正常退出清理。
+
+### 10.7 功能对齐范围过大
+
+控制措施：按 A2-A6 纵向闭环交付；功能差异矩阵固定到 B0 的同一 Kimi Code commit。第 6 章中由 A2-A6 交付的全部 V1 功能定义为核心能力，不得通过 scope exception 移除。V1 范围内条目最终只能为已支持或明确不适用；部分支持或延期必须先通过用户确认的 OpenSpec scope exception 调整非核心范围，并记录原因、影响和恢复条件。
+
+### 10.8 同时追求重构和视觉创新
 
 控制措施：V1 使用 Kimi Web 视觉基线；架构重建完成后再逐步进行品牌和交互迭代。
 
-## 11. 待确认事项
+## 11. V1 非目标与阶段内部决策
 
-以下事项尚未成为正式决策，进入对应实现前需要确认：
+V1 明确不包含：
 
-1. 数据目录：默认使用 Moonfall 独立目录，还是共享 `~/.kimi-code` 的会话与配置。
-2. 后端来源：CI 直接从固定 Kimi Code commit 构建，还是消费受控的预构建 SEA artifact。
-3. 进程策略：App 独占私有 daemon，还是优先复用已经运行的 Kimi daemon。
-4. 自动更新：V1 正式版是否必须包含 App 与 sidecar 的原子更新。
-5. 品牌范围：V1 只替换产品名称与图标，还是同时调整文案和信息架构。
-6. 最低 macOS 版本与首批支持架构：Apple Silicon only，还是同时支持 Intel。
+- Kimi Web Vue 组件、composable、store、页面代码或 API adapter 复用。
+- Kimi Code fork、上游 patch 或纯后端 SEA 变体。
+- Moonfall 自有 Token、Session、Task、Agent、Provider 状态生命周期。
+- Intel、Windows、Linux、移动端或远程 Web 支持。
+- 共享 `~/.kimi-code`、复用外部 daemon 或 sidecar 独立更新。
+- 多账号调度、订阅转 API、用量均衡、远程隧道、定时任务、梦境记忆、跨会话记忆、内置浏览器或悬浮宠物。
+- 在完成前端重构的同时重新设计完整信息架构；V1 先对齐 Kimi Web 的功能和界面密度。
 
-在这些事项确认前，推荐默认采用：独立数据目录、固定 commit 构建、App 私有 daemon、Apple Silicon 优先。
+`docs/idea.md` 中的扩展想法继续作为后续候选，不进入 V1 完成门禁。
+
+以下阶段内部细节由对应 OpenSpec change 在实施前确认，不改变本路线的职责边界：
+
+1. B0 选择的实际 Kimi Code commit SHA 与具体工具链版本。
+2. A0 确定的最低 macOS 版本、bundle identifier 和工程命令。
+3. A1 基于真实上游契约确定的连接描述读取细节与 lifecycle timeout。
+4. A8 的 App 自动更新方案；无论采用何种方案，App 与 SEA 必须原子升级。
 
 ## 12. V1 完成定义
 
 V1 只有在以下条件全部满足时才视为完成：
 
-- 用户无需安装 Node.js、pnpm 或 Kimi CLI。
-- App 可以可靠启动、连接、重启和诊断 Kimi Code sidecar。
-- Agent 主流程以及 V1 功能矩阵中的能力完成验收。
-- 断线、Token 失效、sidecar 异常和 App 重启有明确恢复行为。
-- 长会话和持续流式输出不会造成不可接受的 UI 卡顿。
-- 浅色、深色和最小窗口尺寸通过视觉验收。
-- 安装包可以在干净的目标 Mac 环境运行。
-- 正式分发产物完成签名和公证。
-- 所有已知功能差异均有记录，不存在隐式缺失。
+- Moonfall 通过固定完整 commit 的脚本拉取并构建官方完整 Apple Silicon SEA。
+- 构建产物具有 Kimi Code commit/version、工具链、上游 target `darwin-arm64`、Mach-O 架构 `arm64`、Tauri staging triple `aarch64-apple-darwin` 和 SHA-256 清单。
+- REST、WebSocket 与全部后端能力域进入能力矩阵，没有未记录缺口。
+- SEA 作为 external binary 随签名后的 Moonfall.app 分发，且不独立于 App 更新。
+- 干净 Apple Silicon Mac 无需 Node.js、pnpm、Kimi CLI 或外部 daemon。
+- Kimi Code 使用 Moonfall 独立 `KIMI_CODE_HOME`，并继续作为认证和业务状态唯一事实来源。
+- Moonfall 不重复实现 Kimi Code 的 Token 或业务状态生命周期。
+- 工作区、会话、对话、Tool、Approval、Question、文件、Git、Terminal、高级 Agent、模型和设置完成验收。
+- 断线、sidecar 退出、App 重启、后端错误和长会话均有明确行为。
+- 浅色、深色、默认窗口和最小窗口通过确定性 Playwright 与 Midscene 验收。
+- 功能差异矩阵固定到 B0 的同一 Kimi Code commit，V1 范围内每项均标记为已支持或明确不适用。
+- 第 6 章中由 A2-A6 交付的核心能力全部完成验收；部分支持或延期条目已通过用户确认的 OpenSpec scope exception 调整非核心范围，而不是作为 V1 完成状态保留。
+- `.app` 完成 Developer ID 签名、hardened runtime、notarization 和干净机器安装验证。
+- B0-B2 与 A0-A8 的 OpenSpec change 均完成 verify、strict validation、sync 和 archive。
