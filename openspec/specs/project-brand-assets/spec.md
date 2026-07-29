@@ -1,6 +1,6 @@
 ## Purpose
 
-定义 ToTheMoon 项目明暗主题 logo 资源的固定路径、用途和完整性约束，供后续应用初始化稳定引用。
+定义 Moonfall 项目明暗主题 logo 资源的固定路径、用途和完整性约束，供后续应用初始化稳定引用。
 
 ## Requirements
 

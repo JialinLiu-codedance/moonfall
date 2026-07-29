@@ -1,4 +1,4 @@
-# ToTheMoon V1 技术路线
+# Moonfall V1 技术路线
 
 > 状态：Draft  
 > 日期：2026-07-28  
@@ -6,11 +6,11 @@
 
 ## 1. 项目目标
 
-ToTheMoon 是一个基于 Kimi Code 后端能力构建的 macOS Agent 工作台。V1 的目标不是给现有 Kimi Web 增加桌面外壳，而是在保留 Kimi Code 后端的前提下，使用 Tauri、React 和 HeroUI 完全重建前端，并达到现有 Kimi Web 的功能覆盖范围。
+Moonfall 是一个基于 Kimi Code 后端能力构建的 macOS Agent 工作台。V1 的目标不是给现有 Kimi Web 增加桌面外壳，而是在保留 Kimi Code 后端的前提下，使用 Tauri、React 和 HeroUI 完全重建前端，并达到现有 Kimi Web 的功能覆盖范围。
 
 V1 重点解决以下问题：
 
-- 用户无需安装 Node.js、pnpm 或 Kimi CLI，即可安装并运行 ToTheMoon。
+- 用户无需安装 Node.js、pnpm 或 Kimi CLI，即可安装并运行 Moonfall。
 - App 能可靠启动、连接和管理本地 Kimi Code 服务。
 - 具备完整的 Agent 对话、工具调用、任务控制和开发者工作区能力。
 - 建立独立、可维护的 React 前端架构，为后续产品与视觉迭代提供基础。
@@ -38,7 +38,7 @@ HeroUI 必须使用 v3 API：
 
 ### 2.2 前端重建边界
 
-ToTheMoon 不复用 Kimi Web 的以下实现：
+Moonfall 不复用 Kimi Web 的以下实现：
 
 - Vue 组件
 - composables
@@ -57,7 +57,7 @@ ToTheMoon 不复用 Kimi Web 的以下实现：
 
 ### 2.3 第一版设计策略
 
-V1 在视觉上与现有 Kimi Web 保持一致，降低同时重构技术架构与产品设计带来的风险。视觉一致不等于复制前端代码，而是将现有设计语言重新表达为 ToTheMoon 的设计 Token 和 React 组件。
+V1 在视觉上与现有 Kimi Web 保持一致，降低同时重构技术架构与产品设计带来的风险。视觉一致不等于复制前端代码，而是将现有设计语言重新表达为 Moonfall 的设计 Token 和 React 组件。
 
 V1 保留的主要视觉特征：
 
@@ -76,7 +76,7 @@ V1 保留的主要视觉特征：
 
 ```text
 ┌─────────────────────────────────────────────────────────────┐
-│                       ToTheMoon.app                         │
+│                       Moonfall.app                         │
 │                                                             │
 │  ┌──────────────────── React WebView ────────────────────┐  │
 │  │ App Shell                                             │  │
@@ -139,14 +139,14 @@ Rust Host 不承担以下职责：
 
 ### 4.1 构建与分发
 
-ToTheMoon 不要求用户安装 Kimi Code。发布流程为每个目标平台构建一个固定版本的 Kimi Code SEA，并作为 Tauri sidecar 打进 App Bundle。
+Moonfall 不要求用户安装 Kimi Code。发布流程为每个目标平台构建一个固定版本的 Kimi Code SEA，并作为 Tauri sidecar 打进 App Bundle。
 
 基本要求：
 
-- 每个 ToTheMoon 版本固定对应一个 Kimi Code commit 或 release。
+- 每个 Moonfall 版本固定对应一个 Kimi Code commit 或 release。
 - CI 从固定版本构建 SEA，禁止在发布时跟随浮动分支。
 - App 启动前校验 sidecar 是否存在且可执行。
-- ToTheMoon 版本信息中记录对应的 Kimi Code 版本。
+- Moonfall 版本信息中记录对应的 Kimi Code 版本。
 - 前端协议兼容性以该固定后端版本为准。
 
 ### 4.2 启动流程
@@ -241,7 +241,7 @@ HeroUI 负责通用交互基础：
 - Input、Textarea、Select、Checkbox、Switch
 - Badge、Spinner、Skeleton
 
-ToTheMoon 自己实现领域组件：
+Moonfall 自己实现领域组件：
 
 - Conversation Timeline
 - User/Assistant Message
@@ -351,7 +351,7 @@ ToTheMoon 自己实现领域组件：
 - 终端。
 - 原生目录选择、打开文件和 Finder 集成。
 
-完成标准：用户可以在 ToTheMoon 内检查 Agent 产生的主要代码变更和命令执行结果。
+完成标准：用户可以在 Moonfall 内检查 Agent 产生的主要代码变更和命令执行结果。
 
 ### M4：高级 Agent 能力
 
@@ -432,7 +432,7 @@ ToTheMoon 自己实现领域组件：
 - 正式外部分发必须使用 Developer ID Application 签名。
 - 启用 hardened runtime，并为 sidecar 配置正确的签名与 entitlements。
 - 完成 Apple notarization。
-- 发布产物记录 ToTheMoon、前端协议和 Kimi Code 后端版本。
+- 发布产物记录 Moonfall、前端协议和 Kimi Code 后端版本。
 - 自动更新不阻塞首个开发版，但正式稳定版发布前必须有明确方案。
 
 ## 10. 风险与控制
@@ -461,7 +461,7 @@ ToTheMoon 自己实现领域组件：
 
 以下事项尚未成为正式决策，进入对应实现前需要确认：
 
-1. 数据目录：默认使用 ToTheMoon 独立目录，还是共享 `~/.kimi-code` 的会话与配置。
+1. 数据目录：默认使用 Moonfall 独立目录，还是共享 `~/.kimi-code` 的会话与配置。
 2. 后端来源：CI 直接从固定 Kimi Code commit 构建，还是消费受控的预构建 SEA artifact。
 3. 进程策略：App 独占私有 daemon，还是优先复用已经运行的 Kimi daemon。
 4. 自动更新：V1 正式版是否必须包含 App 与 sidecar 的原子更新。

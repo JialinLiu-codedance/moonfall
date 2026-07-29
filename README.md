@@ -22,7 +22,7 @@ Moonfall 是一个基于 Kimi Code 后端能力构建的 macOS Agent 工作台�
 | 本地通信 | REST + WebSocket，连接 Kimi Code `kap-server` |
 | Agent 后端 | Kimi Code SEA sidecar，承载 Agent、会话、任务、工具和持久化能力 |
 
-ToTheMoon 将 Kimi Code SEA 随 App 一同分发。用户不需要单独安装 Node.js、pnpm 或 Kimi CLI。React 前端通过明确的协议层调用本地服务，Rust Host 不重复实现 Agent 业务逻辑。
+Moonfall 将 Kimi Code SEA 随 App 一同分发。用户不需要单独安装 Node.js、pnpm 或 Kimi CLI。React 前端通过明确的协议层调用本地服务，Rust Host 不重复实现 Agent 业务逻辑。
 
 ## V1 能力范围
 
