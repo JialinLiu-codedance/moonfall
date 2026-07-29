@@ -1,0 +1,35 @@
+schema: spec-driven
+
+context: |
+  项目文档默认使用中文。
+  技术术语、产品名、协议名、命令、文件路径、代码标识符和规范关键词保留英文。
+  领域术语首次出现时优先使用“中文名称（English Term）”，后续保持术语一致。
+  所有仓库变更 MUST 在实施前创建 OpenSpec change，并完整执行 propose、人工确认、apply、verify、strict validation、sync 和 archive。
+  纯文档、配置、工具链与内部重构也 MUST 执行完整流程；确实没有可观察行为变化时，只允许通过 skip_specs: true 跳过 delta specs。
+
+rules:
+  proposal:
+    - "所有叙述性正文 MUST 使用中文。"
+    - "技术术语、产品名、命令、文件路径和代码标识符可以保留英文。"
+    - "禁止使用完整的英文叙述性句子。"
+    - "明确记录变更动机、范围、影响、非目标和涉及的 capabilities。"
+    - "实施开始前 MUST 获得用户对 proposal、适用的 delta specs、design 和 tasks 的明确确认。"
+  specs:
+    - "所有叙述性正文 MUST 使用中文。"
+    - "MUST、SHALL、GIVEN、WHEN、THEN、AND 等规范关键词保留英文。"
+    - "技术术语、产品名、协议名、命令、文件路径和代码标识符可以保留英文。"
+    - "禁止使用完整的英文叙述性句子。"
+    - "Requirement 标题和 Scenario 标题使用中文，必要的技术名词可以保留英文。"
+    - "每个 Requirement 至少包含一个使用 WHEN 与 THEN 的 Scenario。"
+  design:
+    - "所有叙述性正文 MUST 使用中文。"
+    - "技术术语、产品名、命令、文件路径和代码标识符可以保留英文。"
+    - "禁止使用完整的英文叙述性句子。"
+    - "记录关键决策、被否决方案、风险、验证策略和回滚方式。"
+    - "实施中发现规格或设计漂移时，MUST 先更新 artifacts 并重新获得用户确认。"
+  tasks:
+    - "所有任务描述 MUST 使用中文。"
+    - "命令、文件路径、代码标识符和技术术语可以保留英文。"
+    - "禁止使用完整的英文叙述性句子。"
+    - "任务按依赖顺序排列，只有实现完成且相关检查通过后才能勾选。"
+    - "最后一组任务 MUST 包含相关测试、verify、openspec validate --all --strict、sync 和 archive。"
