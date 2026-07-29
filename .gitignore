@@ -1,0 +1,9 @@
+.agents/skills/.DS_Store
+.agents/.DS_Store
+.DS_Store
+
+# Local secrets and Midscene artifacts
+.env
+.env.*
+!.env.example
+midscene_run/
