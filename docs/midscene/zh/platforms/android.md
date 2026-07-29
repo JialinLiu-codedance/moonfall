@@ -1,0 +1,308 @@
+import { PackageManagerTabs } from '@theme';
+
+# Android
+
+Midscene 通过 adb 连接 Android 设备，可自动化 App 和系统界面。
+
+本指南介绍设备连接、模型配置、Playground 体验，以及 `@midscene/android` 的 JavaScript SDK 集成。
+
+## 效果展示
+
+**提示词：** 打开懂车帝，搜索 SU7 车型，查看参数配置。
+
+<video src="https://lf3-static.bytednsdoc.com/obj/eden-cn/nupipfups/Midscene/1.0-showcases/su72.mp4" poster="https://lf3-static.bytednsdoc.com/obj/eden-cn/nupipfups/Midscene/1.0-showcases/su7.png" height="300" controls />
+
+查看[完整报告](https://lf3-static.bytednsdoc.com/obj/eden-cn/nupipfups/Midscene/1.0-showcases/su7.html)，或浏览更多 [Midscene 案例](/zh/showcases.md)。
+
+## 快速开始
+
+### 准备 Android 设备
+
+在编写脚本前，先确认 adb 能够连接设备且设备信任当前电脑。
+
+#### 安装 adb 并设置 `ANDROID_HOME`
+
+* 通过 [Android Studio](https://developer.android.com/studio) 或 [命令行工具](https://developer.android.com/studio#command-line-tools-only) 安装 adb
+* 验证安装是否成功：
+
+```bash
+adb --version
+```
+
+出现类似输出表示安装成功：
+
+```log
+Android Debug Bridge version 1.0.41
+Version 34.0.4-10411341
+Installed as /usr/local/bin//adb
+Running on Darwin 24.3.0 (arm64)
+```
+
+* 按 [Android environment variables](https://developer.android.com/tools/variables) 设置 `ANDROID_HOME`，并验证：
+
+```bash
+echo $ANDROID_HOME
+```
+
+有输出即代表配置成功：
+
+```log
+/Users/your_username/Library/Android/sdk
+```
+
+#### 启用 USB 调试并验证设备
+
+在系统设置的开发者选项中开启 **USB 调试**（若有 **USB 调试（安全设置）** 也请一并开启），然后用数据线连接手机。
+
+<p align="center">
+  <img src="/android-usb-debug-en.png" alt="android usb debug" width="400" />
+</p>
+
+验证连接：
+
+```bash
+adb devices -l
+```
+
+出现类似输出代表连接成功：
+
+```log
+List of devices attached
+s4ey59	device usb:34603008X product:cezanne model:M2006J device:cezan transport_id:3
+```
+
+### 启动 Playground
+
+Playground 是验证连接的最快方式。无需编写代码，即可体验 `aiAct`、`aiQuery` 和 `aiAssert` 等核心能力。它与 `@midscene/android` 共享相同的代码实现，因此在 Playground 上验证通过的流程，用脚本运行时也完全一致。
+
+1. 启动 Playground CLI：
+
+```bash
+npx --yes @midscene/android-playground
+```
+
+2. 点击 Playground 窗口中的齿轮按钮，粘贴你的 API Key 配置。如果还没有 API Key，请回到 [模型配置](/zh/model-config.md) 获取。
+
+![](/android-set-env.png)
+
+## 使用 JavaScript SDK
+
+当 Playground 运行正常后，就可以切换到可复用的 JavaScript 脚本。
+
+### 配置模型
+
+通过环境变量设置模型。选择模型时，请参考[模型策略](/zh/model-strategy.md)。
+
+```bash
+export MIDSCENE_MODEL_BASE_URL="https://替换为你的模型服务地址/v1"
+export MIDSCENE_MODEL_API_KEY="替换为你的 API Key"
+export MIDSCENE_MODEL_NAME="替换为你的模型名称"
+export MIDSCENE_MODEL_FAMILY="替换为你的模型系列"
+```
+
+全部配置项请参考[模型配置](/zh/model-config.md)。
+
+### 安装依赖
+
+<PackageManagerTabs command="install @midscene/android dotenv --save-dev" />
+
+### 编写脚本
+
+下面的示例会在设备上打开浏览器、搜索 eBay，并断言结果列表。
+
+```typescript title="./demo.ts"
+import 'dotenv/config'; // 通过 dotenv/config 自动加载 .env 文件中的环境变量
+import {
+  AndroidAgent,
+  AndroidDevice,
+  getConnectedDevices,
+} from '@midscene/android';
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+Promise.resolve(
+  (async () => {
+    const devices = await getConnectedDevices();
+    const device = new AndroidDevice(devices[0].udid);
+
+    const agent = new AndroidAgent(device, {
+      aiActionContext:
+        'If any location, permission, user agreement, etc. popup, click agree. If login page pops up, close it.',
+    });
+    await device.connect();
+
+    await agent.aiAct('open browser and navigate to ebay.com');
+    await sleep(5000);
+    await agent.aiAct('type "Headphones" in search box, hit Enter');
+    await agent.aiWaitFor('There is at least one headphone product');
+
+    const items = await agent.aiQuery(
+      '{itemTitle: string, price: Number}[], find item in list and corresponding price',
+    );
+    console.log('headphones in stock', items);
+
+    await agent.aiAssert('There is a category filter on the left');
+  })(),
+);
+```
+
+### 运行脚本
+
+```bash
+npx tsx demo.ts
+```
+
+### 查看报告
+
+脚本成功后会输出 `Midscene - report file updated: /path/to/report/some_id.html`。在浏览器中打开该 HTML 文件即可回放每一步交互、查询与断言。
+
+## 进阶
+
+本节介绍如何自定义设备行为、把 Midscene 接入独立框架，以及排查 adb 问题。更多构造函数参数位于 [API 参考的 Android 章节](/zh/reference.md#android)。
+
+### 扩展 Android 上的 Midscene
+
+使用 `defineAction()` 定义自定义手势，并通过 `customActions` 传入。Midscene 会把自定义动作追加到规划器中，让 AI 可以调用你领域特定的动作名。
+
+```typescript
+import { getMidsceneLocationSchema, z } from '@midscene/core';
+import { defineAction } from '@midscene/core/device';
+import { AndroidAgent, AndroidDevice, getConnectedDevices } from '@midscene/android';
+
+const ContinuousClick = defineAction({
+  name: 'continuousClick',
+  description: 'Click the same target repeatedly',
+  paramSchema: z.object({
+    locate: getMidsceneLocationSchema(),
+    count: z.number().int().positive().describe('How many times to click'),
+  }),
+  async call(param) {
+    const { locate, count } = param;
+    console.log('click target center', locate.center);
+    console.log('click count', count);
+  },
+});
+
+const devices = await getConnectedDevices();
+const device = new AndroidDevice(devices[0].udid);
+await device.connect();
+
+const agent = new AndroidAgent(device, {
+  customActions: [ContinuousClick],
+});
+
+await agent.aiAct('click the red button five times');
+```
+
+关于自定义动作和动作 Schema 的更多解释，请参阅 [与任意界面集成](/zh/integrate-with-any-interface.md#define-a-custom-action)。
+
+## 常见问题
+
+### 为什么连接了设备，但仍然无法控制？
+
+一个典型的错误信息是：
+
+```
+Error:
+Exception occurred while executing 'tap':
+java.lang.SecurityException: Injecting input events requires the caller (or the source of the instrumentation, if any) to have the INJECT_EVENTS permission.
+```
+
+请在系统设置的开发者选项中确认以下选项已开启：
+
+1. **USB 调试**
+2. **USB 调试（安全设置）**（如果存在）
+
+<p align="center">
+  <img src="/android-usb-debug.png" alt="android usb debug" width="400" />
+</p>
+
+### 输入文本后，输入框内容被清空或消失
+
+Midscene 在输入文本后会自动隐藏键盘，默认行为是发送 **ESC 按键事件**。然而，部分输入框（尤其是 WebView 中的输入框）会监听 ESC 按键事件，导致以下副作用：
+
+* 清空刚输入的文本
+* 关闭包含输入框的弹窗或模态框
+* 导航离开当前页面
+
+你可以按以下优先级逐步尝试解决：
+
+**方案一：改用 BACK 键(Android 返回键)隐藏键盘**
+
+将 `keyboardDismissStrategy` 设为 `'back-first'`，用 Android BACK 键替代 ESC 键来隐藏键盘：
+
+```typescript
+const device = new AndroidDevice('device-id', {
+  keyboardDismissStrategy: 'back-first',
+});
+```
+
+**方案二：关闭自动隐藏键盘**
+
+如果你的输入框同时监听了 BACK 键，可以彻底关闭自动隐藏键盘，由 AI Agent 或后续操作自行管理键盘状态：
+
+```typescript
+const device = new AndroidDevice('device-id', {
+  autoDismissKeyboard: false,
+});
+```
+
+关闭后键盘不会自动隐藏，可能导致键盘覆盖大量屏幕区域。你可以通过以下方式应对：
+
+* 使用 `aiAct` 指令手动隐藏键盘，例如 `await agent.aiAct('点击键盘上的收起按钮')`
+* 安装并切换到 [ADBKeyBoard](https://github.com/senzhk/ADBKeyBoard)——这是一款极小面积的虚拟键盘，即使不隐藏也几乎不影响屏幕操作
+
+### 英文文本被 Android 输入法改写
+
+如果报告中显示的输入参数是正确的，但 App 实际收到的是不同文本、缺字，或被改成中文/拼音候选词，通常是当前 Android 输入法改写了输入内容。纯 ASCII 文本如果走原生 `adb input text` 路径，在中文输入法或带自动纠错的输入法下就可能出现这个问题。
+
+使用已有的 `imeStrategy` 选项，将所有文本输入强制改为 yadb：
+
+```typescript
+const device = new AndroidDevice('device-id', {
+  imeStrategy: 'always-yadb',
+});
+```
+
+YAML 脚本中可以这样配置：
+
+```yaml
+android:
+  imeStrategy: always-yadb
+```
+
+也可以通过环境变量设置：
+
+```bash
+export MIDSCENE_ANDROID_IME_STRATEGY=always-yadb
+```
+
+这和“输入后被清空”不是同一个问题。如果文本先正确输入、随后消失，请优先检查 `keyboardDismissStrategy` 或 `autoDismissKeyboard`。
+
+### 如何使用自定义的 adb 路径或远程 adb 服务器？
+
+通过环境变量设置：
+
+```bash
+export MIDSCENE_ADB_PATH=/path/to/adb
+export MIDSCENE_ADB_REMOTE_HOST=192.168.1.100
+export MIDSCENE_ADB_REMOTE_PORT=5037
+```
+
+也可以通过 AndroidDevice 构造函数传入：
+
+```typescript
+const device = new AndroidDevice('s4ey59', {
+  androidAdbPath: '/path/to/adb',
+  remoteAdbHost: '192.168.1.100',
+  remoteAdbPort: 5037,
+});
+```
+
+## 更多
+
+* 查看所有 Agent 方法：[API 参考（通用）](/zh/reference.md#interaction-methods)
+* Android 专属参数与接口：[API 参考（Android）](/zh/reference.md#android)
+* 使用 [YAML 自动化脚本和命令行工具](/zh/automate-with-scripts-in-yaml.md)。
+* 示例项目
+  * Android JavaScript SDK 示例：[https://github.com/web-infra-dev/midscene-example/blob/main/android/javascript-sdk-demo](https://github.com/web-infra-dev/midscene-example/blob/main/android/javascript-sdk-demo)
+  * Android + Vitest 示例：[https://github.com/web-infra-dev/midscene-example/tree/main/android/vitest-demo](https://github.com/web-infra-dev/midscene-example/tree/main/android/vitest-demo)
