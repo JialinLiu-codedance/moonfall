@@ -1,11 +1,11 @@
 ## Purpose
 
-定义 ToTheMoon 仓库 README 对项目定位、V1 技术路线、当前状态和进一步阅读入口的说明要求，使新参与者能够从仓库首页获得准确且不过度承诺的信息。
+定义 Moonfall 仓库 README 对项目定位、V1 技术路线、当前状态和进一步阅读入口的说明要求，使新参与者能够从仓库首页获得准确且不过度承诺的信息。
 
 ## Requirements
 
 ### Requirement: README 说明项目定位
-仓库 README MUST 说明 ToTheMoon 是基于 Kimi Code 后端构建的 macOS Agent 工作台，并说明 V1 完全重建前端。
+仓库 README MUST 说明 Moonfall 是基于 Kimi Code 后端构建的 macOS Agent 工作台，并说明 V1 完全重建前端。
 
 #### Scenario: 新参与者阅读仓库首页
 - **WHEN** 新参与者打开 `README.md`

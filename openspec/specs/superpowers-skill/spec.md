@@ -1,6 +1,6 @@
 ## Purpose
 
-定义 ToTheMoon 仓库内按名称拆分的 Superpowers skills 统一来源、挂载与发现约定，确保本地 skill 仅存在一份事实来源，并且通过根级 CLI 入口一致暴露。
+定义 Moonfall 仓库内按名称拆分的 Superpowers skills 统一来源、挂载与发现约定，确保本地 skill 仅存在一份事实来源，并且通过根级 CLI 入口一致暴露。
 
 ## Requirements
 
