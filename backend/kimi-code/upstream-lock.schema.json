@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://moonfall.local/backend/kimi-code/upstream-lock.schema.json",
+  "title": "Moonfall Kimi Code upstream lock",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "repository",
+    "commit",
+    "kimiCodeVersion",
+    "toolchain",
+    "upstreamTarget",
+    "recordedAt",
+    "source"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "const": 1,
+      "description": "Lock schema major version. B0.1 uses 1."
+    },
+    "repository": {
+      "type": "string",
+      "const": "https://github.com/MoonshotAI/kimi-code.git",
+      "description": "Canonical HTTPS remote for the Kimi Code upstream."
+    },
+    "commit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$",
+      "description": "Full 40-character lowercase git commit SHA. Branch names and short SHAs are rejected."
+    },
+    "refNote": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Optional human-readable note. Must never be used as the pin."
+    },
+    "kimiCodeVersion": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+([.-][0-9A-Za-z.-]+)?$",
+      "description": "Version of apps/kimi-code/package.json at the pinned commit."
+    },
+    "toolchain": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["node", "packageManager"],
+      "properties": {
+        "node": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+          "description": "Exact Node version from upstream .nvmrc at the pinned commit."
+        },
+        "packageManager": {
+          "type": "string",
+          "pattern": "^pnpm@[0-9]+\\.[0-9]+\\.[0-9]+$",
+          "description": "Exact packageManager field from upstream root package.json."
+        }
+      }
+    },
+    "upstreamTarget": {
+      "type": "string",
+      "const": "darwin-arm64",
+      "description": "Upstream native build target used by Moonfall V1."
+    },
+    "recordedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 timestamp when this lock entry was recorded."
+    },
+    "source": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Statement that this file is the sole pin source."
+    }
+  }
+}

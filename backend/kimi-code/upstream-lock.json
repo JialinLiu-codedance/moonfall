@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "repository": "https://github.com/MoonshotAI/kimi-code.git",
+  "commit": "75395f6abb17f83f30d16b51f4e060a639f43622",
+  "refNote": "origin/main @ 2026-08-03 (feat agent-core-v2 lifecycle hook events #2558)",
+  "kimiCodeVersion": "0.31.1",
+  "toolchain": {
+    "node": "24.15.0",
+    "packageManager": "pnpm@10.33.0"
+  },
+  "upstreamTarget": "darwin-arm64",
+  "recordedAt": "2026-08-03T10:00:00.000Z",
+  "source": "本文件是 Moonfall 唯一的 Kimi Code 上游 pin 来源；禁止构建时跟随浮动 branch 或 tag。"
+}

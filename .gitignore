@@ -7,3 +7,7 @@
 .env.*
 !.env.example
 midscene_run/
+
+# Kimi Code upstream cache / checkout (B0.2+)
+backend/kimi-code/.cache/
+.cache/kimi-code/
