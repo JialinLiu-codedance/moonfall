@@ -1,6 +1,6 @@
-# Kimi Code 上游锁定与拉取（B0.1 / B0.2 / B0.3）
+# Kimi Code 上游锁定与构建（B0.1 / B0.2 / B0.3 / B1.1）
 
-本目录保存 Moonfall 对 [MoonshotAI/kimi-code](https://github.com/MoonshotAI/kimi-code) 的可审计 pin，以及按 pin 拉取后的本地 cache 与工具链门禁约定。
+本目录保存 Moonfall 对 [MoonshotAI/kimi-code](https://github.com/MoonshotAI/kimi-code) 的可审计 pin，以及按 pin 拉取后的本地 cache、工具链门禁与 Web assets 构建约定。
 
 ## 唯一事实来源
 
@@ -11,6 +11,7 @@
 | `../../scripts/verify-upstream-lock.mjs` | 本地 schema 与业务规则校验（B0.1） |
 | `../../scripts/fetch-pinned-kimi-code.mjs` | 按 pin 拉取并校验 checkout（B0.2） |
 | `../../scripts/verify-kimi-toolchain.mjs` | 校验 Node / pnpm / platform / source（B0.3） |
+| `../../scripts/build-kimi-web-assets.mjs` | frozen install + Kimi Web build + copy dist-web（B1.1） |
 | `.cache/src/` | **唯一** canonical 上游 checkout（gitignore，不进仓库） |
 
 **唯一 pin 来源是 `upstream-lock.json` 中的 `repository` + 完整 `commit`。**
@@ -182,8 +183,60 @@ pnpm -v    # 10.33.0
   → verify-upstream-lock
   → fetch-pinned-kimi-code
   → verify-kimi-toolchain
-  → B1
+  → build-kimi-web-assets   # B1.1
+  → B1.2+（SEA / smoke / manifest）
 ```
+
+## B1.1：构建 Kimi Web 并复制 Web assets
+
+```bash
+node scripts/build-kimi-web-assets.mjs
+```
+
+前置：
+
+1. B0.2 已在 `backend/kimi-code/.cache/src` 得到 clean detached pin checkout。
+2. B0.3 工具链门禁可通过：本机 Node / pnpm 与 lock **精确**一致（当前 pin 见 `upstream-lock.json` 的 `toolchain`，例如 Node `24.15.0`、`pnpm@10.33.0`），宿主为 `darwin-arm64`。
+3. 可访问 pnpm registry（脚本会执行 `pnpm install --frozen-lockfile`）。
+
+行为：
+
+1. 校验 `upstream-lock.json`（复用 B0.1）。
+2. 子进程调用 `scripts/verify-kimi-toolchain.mjs`（复用 B0.3）；失败则**不**进入 install。
+3. 在 cache 根执行 `pnpm install --frozen-lockfile`。
+4. 执行 `pnpm --filter @moonshot-ai/kimi-web run build`。
+5. 执行官方 `node apps/kimi-code/scripts/copy-web-assets.mjs`（`kimi-web/dist` → `kimi-code/dist-web`）。
+6. 断言 `apps/kimi-code/dist-web/index.html` 存在；打印摘要，退出码 `0`。
+
+### 选项
+
+| 选项 | 含义 |
+| --- | --- |
+| `--lock <path>` | 使用指定 lock 文件（测试用） |
+| `--cache <path>` | 使用指定 checkout 路径（测试用） |
+
+本脚本 **不**执行 `build:native:release` / SEA、**不** smoke、**不** package、**不**修改 lock。
+
+### 失败语义（阶段标签）
+
+| 阶段 | 典型原因 |
+| --- | --- |
+| `lock` | schema 或业务规则失败 |
+| `toolchain` | B0.3 门禁失败（其 stderr 可能仍带 `checkout` / `platform` / `node` / `pnpm` / `source`） |
+| `install` | `pnpm install --frozen-lockfile` 非 0 |
+| `web-build` | `@moonshot-ai/kimi-web` build 失败 |
+| `copy` | 官方 `copy-web-assets.mjs` 失败或缺少 `kimi-web/dist` |
+| `verify` | `apps/kimi-code/dist-web/index.html` 缺失或不是文件 |
+
+### 成功后自检
+
+```bash
+CACHE=backend/kimi-code/.cache/src
+test -f "$CACHE/apps/kimi-code/dist-web/index.html" && echo ok
+git -C "$CACHE" status --porcelain   # 应仍为空（dist/node_modules 已 gitignore）
+```
+
+产物只存在于 gitignored 的 `.cache/src` 内，**不进 Git**。
 
 ## 工作包职责边界
 
@@ -192,14 +245,17 @@ pnpm -v    # 10.33.0
 | **B0.1** | 定义 schema、写入 pin、本地 lock 校验 |
 | **B0.2** | 按 pin 拉取/缓存上游，校验 remote、detached checkout、clean worktree |
 | **B0.3** | 校验 Node、pnpm、platform、lockfile/源码元数据与升级失败规则 |
-| **B1** | 构建 Kimi Web / SEA / smoke / manifest |
+| **B1.1** | frozen install、构建 Kimi Web、复制到 `dist-web` |
+| **B1.2+** | `build:native:release`、smoke、package、manifest / staging |
 
-B0.3 **不**安装依赖，**不**构建 SEA 或 App。
+B0.3 **不**安装依赖，**不**构建 SEA 或 App。  
+B1.1 **不**构建 SEA；SEA 从 B1.2 开始。
 
 ## 缓存路径
 
 | 路径 | 状态 |
 | --- | --- |
-| `backend/kimi-code/.cache/src` | B0.2/B0.3 **唯一** canonical checkout |
+| `backend/kimi-code/.cache/src` | B0.2/B0.3/B1.1 **唯一** canonical checkout 与构建工作目录 |
+| `backend/kimi-code/.cache/src/apps/kimi-code/dist-web` | B1.1 Web assets 输出（gitignore） |
 | `backend/kimi-code/.cache/` | gitignore 父目录 |
-| `.cache/kimi-code/` | 仅 gitignore 预留，B0.2/B0.3 不使用 |
+| `.cache/kimi-code/` | 仅 gitignore 预留，B0.2/B0.3/B1.1 不使用 |
