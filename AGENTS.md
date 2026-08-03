@@ -42,8 +42,18 @@
 
 1. 新功能或范围、方案、成功标准不清晰时，在 `openspec-explore` 阶段使用 `brainstorming` 澄清需求和比较方案；正式结论通过 `openspec-propose` 写入 OpenSpec artifacts。
 2. 缺陷根因未知时，可以先使用 `systematic-debugging` 执行只读诊断；确认根因后，任何仓库修改仍必须先创建或更新 OpenSpec change 并取得 artifacts 确认。
-3. artifacts 获得确认后，使用 `openspec-apply-change` 按依赖顺序实施。根据 task 性质使用 `test-driven-development`、`systematic-debugging` 和 `requesting-code-review`；需要多代理或批次执行时，可以选用 `subagent-driven-development` 或 `executing-plans`，但不得产生第二套正式 task 状态。
+3. artifacts 获得确认后，使用 `openspec-apply-change` 按依赖顺序实施。根据 task 性质使用 `test-driven-development`、`systematic-debugging` 和 `requesting-code-review`；当存在 2 个及以上可并行且无写冲突的调查或修改切片时，MUST 优先使用 swarm / 多 subagent（或 `subagent-driven-development` / `dispatching-parallel-agents` / `executing-plans`），由主 Agent 汇总审核；不得产生第二套正式 task 状态。
 4. 每个 task 只有在实现完成且相关 fresh verification 通过后才能勾选；agent 或 subagent 的完成声明不能替代测试、静态检查、构建或需求核对证据。
+
+### 并行与 Swarm
+
+- 开发中遇到可并行工作时，MUST 优先使用 swarm / 多 subagent，而不是由主 Agent 串行包办。
+- **应当并行**：2 个及以上无共享写冲突的只读调查或取证；已确认 OpenSpec tasks 内文件集合不重叠、无接口耦合的修改切片。
+- **主 Agent 职责**：划分并行边界与写集合、派发 subagent、汇总结果、审核范围与正确性、决定是否采纳，并单独维护唯一的 OpenSpec `tasks.md` 完成状态。
+- **审核义务**：subagent 的完成声明 MUST NOT 直接采信；主 Agent MUST 核对 diff、与 specs/design/tasks 的一致性，以及相关 fresh verification 证据后，才能勾选 task 或进入 verify/sync/archive。
+- **禁止并行**：争用同一文件、同一共享状态或同一运行中进程；后一步强依赖前一步输出；尚未获得 artifacts 确认的实现修改；并行编排成本明显高于收益的单点小改。
+- **工作包边界**：并行只发生在当前已授权的 OpenSpec change / task 内部；MUST NOT 并行实施多个 V1 工作包或未确认的独立 change。
+- AgentSwarm、`dispatching-parallel-agents`、`subagent-driven-development` 等只是阶段内执行手段，不得建立独立于 OpenSpec 的 lifecycle 或第二套 task 状态。
 
 ### Midscene UI TDD
 
